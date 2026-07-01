@@ -1,0 +1,95 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: testapi_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./:/var/www/html
+      - vendor:/var/www/html/vendor
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: testapi
+      DB_USERNAME: testapi
+      DB_PASSWORD: secret
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ""
+      REDIS_PORT: 6379
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - testapi
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: testapi_nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+    networks:
+      - testapi
+
+  db:
+    image: mysql:8.0
+    container_name: testapi_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: testapi
+      MYSQL_USER: testapi
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_secret"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - testapi
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: testapi_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - testapi
+
+networks:
+  testapi:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  redis_data:
+  vendor:
