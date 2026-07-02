@@ -37,43 +37,33 @@ class SlotService
 
     public function addHold(int $slotId, string $idempotencyKey): Hold
     {
-        try {
-            return DB::transaction(function () use ($slotId, $idempotencyKey): Hold {
+        return DB::transaction(function () use ($slotId, $idempotencyKey): Hold {
 
-                $hold = $this->repository->findHoldByIdempotency($slotId, $idempotencyKey);
-                if ($hold) {
-                    return $hold;
-                }
-
-                $slot = Slot::query()
-                    ->where('slot_id', $slotId)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (!$slot) {
-                    throw new NotFoundException('Слот не найден');
-                }
-
-                if ($slot->remaining < 1) {
-                    throw new SlotIsFullException('Мест нет');
-                }
-
-                return Hold::create([
-                    'slot_id' => $slotId,
-                    'status' => Hold::STATUS_HELD,
-                    'expires_at' => Carbon::now()->addSeconds(self::HOLD_EXPIRED),
-                    'idempotency_key' => $idempotencyKey,
-                ]);
-            });
-        } catch (QueryException $exception) {
             $hold = $this->repository->findHoldByIdempotency($slotId, $idempotencyKey);
-
             if ($hold) {
                 return $hold;
             }
 
-            throw $exception;
-        }
+            $slot = Slot::query()
+                ->where('slot_id', $slotId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$slot) {
+                throw new NotFoundException('Слот не найден');
+            }
+
+            if ($slot->remaining < 1) {
+                throw new SlotIsFullException('Мест нет');
+            }
+
+            return Hold::create([
+                'slot_id' => $slotId,
+                'status' => Hold::STATUS_HELD,
+                'expires_at' => Carbon::now()->addSeconds(self::HOLD_EXPIRED),
+                'idempotency_key' => $idempotencyKey,
+            ]);
+        });
     }
 
     public function confirmHold(int $holdId): Hold
@@ -126,12 +116,12 @@ class SlotService
             function () use ($holdId): Collection {
                 $hold = Hold::query()
                     ->where('hold_id', $holdId)
-                    ->where('status', Hold::STATUS_HELD)
+                    ->where('status', Hold::STATUS_CONFIRMED)
                     ->lockForUpdate()
                     ->first();
 
                 if (!$hold) {
-                    throw new NotFoundException('Открытый Холд не найден или уже подтвержден');
+                    throw new NotFoundException('Подтвержденный Холд не найден');
                 }
 
                 $slot = Slot::query()
