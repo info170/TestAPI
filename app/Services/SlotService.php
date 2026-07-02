@@ -129,7 +129,12 @@ class SlotService
                     ->lockForUpdate()
                     ->first();
 
-                if ($slot->remaining < $slot->capacity) {
+                $confirmedHoldsForSlotCount = Hold::query()
+                    ->where('slot_id', $hold->slot_id)
+                    ->where('status', Hold::STATUS_CONFIRMED)
+                    ->count();
+
+                if ($slot->remaining < $slot->capacity - $confirmedHoldsForSlotCount) {
                     $this->repository->incrementSlotRemaining($slot->slot_id);
                 }
 
