@@ -57,6 +57,21 @@ class SlotService
                 throw new SlotIsFullException('Мест нет');
             }
 
+            $activeHoldsCount = Hold::query()
+                ->where('slot_id', $slotId)
+                ->where(function ($query) {
+                    $query->where('status', Hold::STATUS_CONFIRMED)
+                        ->orWhere(function ($query) {
+                            $query->where('status', Hold::STATUS_HELD)
+                                ->where('expires_at', '>', now());
+                        });
+                })
+                ->count();
+
+            if ($activeHoldsCount >= $slot->capacity) {
+                throw new SlotIsFullException('Мест нет');
+            }
+
             return Hold::create([
                 'slot_id' => $slotId,
                 'status' => Hold::STATUS_HELD,
